@@ -1,0 +1,292 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: RUConnect app cloudformation stack
+
+Parameters:
+  RUConnectPlatPictureStorageBucketName:
+    Type: String
+    Default: ruconnect-images-plats
+  RUConnectProfilePictureStorageBucketName:
+    Type: String
+    Default: ruconnect-images-profils
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 5
+    Runtime: python3.11
+    Handler: app.lambda_handler
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        CACHE_TIME: 120
+
+Resources:
+  RUConnectApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: ruconnect-api
+      StageName: prod
+      EndpointConfiguration:
+        Type: REGIONAL
+      Auth:
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt RUConnectUserPool
+      Cors:
+        AllowMethods: "'GET,PUT,POST,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      GatewayResponses:
+        DEFAULT_4XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              Access-Control-Allow-Methods: "'GET,PUT,POST,DELETE,OPTIONS'"
+        DEFAULT_5XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              Access-Control-Allow-Methods: "'GET,PUT,POST,DELETE,OPTIONS'"
+
+  #
+  # COGNITO
+  #
+
+  RUConnectUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: ruconnect-user-pool
+      AliasAttributes:
+        - preferred_username
+      UsernameConfiguration:
+        CaseSensitive: True
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: False
+          RequireNumbers: False
+          RequireSymbols: False
+          RequireUppercase: False
+      Schema:
+        - Name: email
+          Required: True
+          Mutable: False
+      LambdaConfig:
+        PostConfirmation: !GetAtt PostConfirmSignUpFunction.Arn
+        PreSignUp: !GetAtt PreSignUpFunction.Arn
+
+  OnCognitoPostConfirmationSignUpPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt PostConfirmSignUpFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${RUConnectUserPool}
+
+  OnCognitoPreSignUpPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt PreSignUpFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${RUConnectUserPool}
+
+  RUConnectUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref RUConnectUserPool
+      Domain: !Sub ${StageParameter}-ruconnect-upd
+
+  RUConnectUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: ruconnect-userpool-client
+      GenerateSecret: False
+      UserPoolId: !Ref RUConnectUserPool
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_CUSTOM_AUTH
+
+  #
+  # DB
+  #
+
+  RUConectUsersDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ruconnect-db-users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: username
+          KeyType: HASH
+
+  #
+  # STUFF
+  #
+
+  AllowAllRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - apigateway.amazonaws.com
+                - dynamodb.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: AllowAllPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
+
+  RUConnectPlatsPictureStorage:
+    Type: AWS::S3::Bucket
+    DependsOn: RUConnectS3CallFunctionPermission
+    Properties:
+      BucketName: !Ref WeiAppPictureStorageBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: False
+        BlockPublicPolicy: False
+        IgnorePublicAcls: False
+        RestrictPublicBuckets: False
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Function: !GetAtt ResizePictureFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: 'unprocessed'
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedHeaders:
+              - '*'
+            MaxAge: 3000
+
+  RUConnectS3CallFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref ResizePictureFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref "AWS::AccountId"
+      SourceArn: !Sub "arn:aws:s3:::${RUConnectProfilePictureStorageBucketName}"
+
+  RUConnectS3PublicPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref RUConnectPlatsPictureStorage
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadForGetBucketObjects
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub 'arn:aws:s3:::${RUConnectProfilePictureStorageBucketName}/*'
+
+  #
+  # FUNCTIONS
+  #
+
+#  HelloWorldFunction:
+#    Type: AWS::Serverless::Function
+#    Properties:
+#      FunctionName: wei_app_lambda_hello_world
+#      CodeUri: hello_world/
+#      Role: !GetAtt AllowAllRole.Arn
+#      Events:
+#        ApiEvent:
+#          Type: Api
+#          Properties:
+#            Path: /
+#            Method: get
+#            RestApiId: !Ref WeiAppApi
+
+  PostConfirmSignUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: wei_app_lambda_post_confirm_sign_up
+      CodeUri: post_confirm_sign_up/
+      Role: !GetAtt AllowAllRole.Arn
+
+  PreSignUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: wei_app_lambda_pre_sign_up
+      CodeUri: pre_sign_up/
+      Role: !GetAtt AllowAllRole.Arn
+
+#  RequestPictureIDFunction:
+#    Type: AWS::Serverless::Function
+#    Properties:
+#      FunctionName: wei_app_lambda_request_picture_id
+#      CodeUri: request_picture_id/
+#      Role: !GetAtt AllowAllRole.Arn
+#      Environment:
+#        Variables:
+#          PICTURE_BUCKET: !Ref WeiAppPictureStorage
+#      Events:
+#        ApiEvent:
+#          Type: Api
+#          Properties:
+#            Path: /picture
+#            Method: post
+#            RestApiId: !Ref WeiAppApi
+#            Auth:
+#              Authorizer: CognitoAuthorizer
+#            RequestModel:
+#              Model: RequestPictureIDModel
+#              ValidateBody: true
+
+#  ResizePictureFunction:
+#    Type: AWS::Serverless::Function
+#    Properties:
+#      FunctionName: wei_app_lambda_resize_picture
+#      CodeUri: resize_picture/
+#      Role: !GetAtt AllowAllRole.Arn
+#      MemorySize: 1024
+#      Timeout: 10
+#      Layers:
+#        - !Ref PillowLayer
+
+#  DependenciesLayer:
+#    Type: AWS::Serverless::LayerVersion
+#    Properties:
+#      LayerName: DependenciesLayer
+#      ContentUri: dependencies/
+#      CompatibleRuntimes:
+#        - python3.11
+
+Outputs:
+  UserPoolClientID:
+    Value: !Ref RUConnectUserPoolClient
+    Description: User Pool Client ID
+  ApiUrl:
+    Value: !Sub https://${RUConnectApi}.execute-api.${AWS::Region}.amazonaws.com
+    Description: API Endpoint URL
