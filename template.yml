@@ -3,12 +3,15 @@ Transform: AWS::Serverless-2016-10-31
 Description: RUConnect app cloudformation stack
 
 Parameters:
-  RUConnectPlatPictureStorageBucketName:
+  RUConnectPlatsPictureStorageBucketName:
     Type: String
     Default: ruconnect-images-plats
   RUConnectProfilePictureStorageBucketName:
     Type: String
     Default: ruconnect-images-profils
+  RUConnectCacheStorageBucketName:
+    Type: String
+    Default: ruconnect-cache-bucket
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
@@ -21,6 +24,9 @@ Globals:
     Environment:
       Variables:
         CACHE_TIME: 120
+        USER_TABLE: !Ref RUConnectUsersDB
+        PLATS_TABLE: !Ref RUConnectPlatsDB
+        RESTAURANTS_TABLE: !Ref RUConnectRestaurantsDB
 
 Resources:
   RUConnectApi:
@@ -33,7 +39,7 @@ Resources:
       Auth:
         Authorizers:
           CognitoAuthorizer:
-            UserPoolArn: !GetAtt RUConnectUserPool
+            UserPoolArn: !GetAtt RUConnectUserPool.Arn
       Cors:
         AllowMethods: "'GET,PUT,POST,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
@@ -71,10 +77,6 @@ Resources:
           RequireNumbers: False
           RequireSymbols: False
           RequireUppercase: False
-      Schema:
-        - Name: email
-          Required: True
-          Mutable: False
       LambdaConfig:
         PostConfirmation: !GetAtt PostConfirmSignUpFunction.Arn
         PreSignUp: !GetAtt PreSignUpFunction.Arn
@@ -99,7 +101,7 @@ Resources:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
       UserPoolId: !Ref RUConnectUserPool
-      Domain: !Sub ${StageParameter}-ruconnect-upd
+      Domain: !Sub prod-ruconnect-upd
 
   RUConnectUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -116,7 +118,7 @@ Resources:
   # DB
   #
 
-  RUConectUsersDB:
+  RUConnectUsersDB:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: ruconnect-db-users
@@ -128,10 +130,35 @@ Resources:
         - AttributeName: username
           KeyType: HASH
 
+  RUConnectPlatsDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ruconnect-db-plats
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  RUConnectRestaurantsDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ruconnect-db-restaurants
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
   #
   # STUFF
   #
 
+  # Dumb role to allow everything (bad idea)
   AllowAllRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -155,11 +182,12 @@ Resources:
                 Action: '*'
                 Resource: '*'
 
+  # Pictures for plats
   RUConnectPlatsPictureStorage:
     Type: AWS::S3::Bucket
-    DependsOn: RUConnectS3CallFunctionPermission
+    DependsOn: RUConnectS3CallFunctionPermissionPlats
     Properties:
-      BucketName: !Ref WeiAppPictureStorageBucketName
+      BucketName: !Ref RUConnectPlatsPictureStorageBucketName
       PublicAccessBlockConfiguration:
         BlockPublicAcls: False
         BlockPublicPolicy: False
@@ -188,16 +216,72 @@ Resources:
               - '*'
             MaxAge: 3000
 
-  RUConnectS3CallFunctionPermission:
+  # I know you're not supposed to do that but meh
+  RUConnecctCacheStorage:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref RUConnectCacheStorageBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: False
+        BlockPublicPolicy: False
+        IgnorePublicAcls: False
+        RestrictPublicBuckets: False
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - '*'
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedHeaders:
+              - '*'
+            MaxAge: 3000
+
+  #  RUConnectProfilePictureStorage:
+  #    Type: AWS::S3::Bucket
+  #    DependsOn: RUConnectS3CallFunctionPermissionProfile
+  #    Properties:
+  #      BucketName: !Ref RUConnectProfilePictureStorageBucketName
+  #      PublicAccessBlockConfiguration:
+  #        BlockPublicAcls: False
+  #        BlockPublicPolicy: False
+  #        IgnorePublicAcls: False
+  #        RestrictPublicBuckets: False
+  #      NotificationConfiguration:
+  #        LambdaConfigurations:
+  #          - Event: 's3:ObjectCreated:*'
+  #            Function: !GetAtt ResizePictureFunction.Arn
+  #            Filter:
+  #              S3Key:
+  #                Rules:
+  #                  - Name: prefix
+  #                    Value: 'unprocessed'
+  #      CorsConfiguration:
+  #        CorsRules:
+  #          - AllowedOrigins:
+  #              - '*'
+  #            AllowedMethods:
+  #              - GET
+  #              - PUT
+  #              - POST
+  #              - DELETE
+  #              - HEAD
+  #            AllowedHeaders:
+  #              - '*'
+  #            MaxAge: 3000
+
+  # Allow bucket to call lambdas
+  RUConnectS3CallFunctionPermissionPlats:
     Type: AWS::Lambda::Permission
     Properties:
       Action: 'lambda:InvokeFunction'
       FunctionName: !Ref ResizePictureFunction
       Principal: s3.amazonaws.com
       SourceAccount: !Ref "AWS::AccountId"
-      SourceArn: !Sub "arn:aws:s3:::${RUConnectProfilePictureStorageBucketName}"
+      SourceArn: !Sub "arn:aws:s3:::${RUConnectPlatsPictureStorageBucketName}"
 
-  RUConnectS3PublicPolicy:
+  # Allow bucket to be read by other code
+  RUConnectS3PublicPolicyPlats:
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref RUConnectPlatsPictureStorage
@@ -208,80 +292,125 @@ Resources:
             Effect: Allow
             Principal: '*'
             Action: 's3:GetObject'
-            Resource: !Sub 'arn:aws:s3:::${RUConnectProfilePictureStorageBucketName}/*'
+            Resource: !Sub 'arn:aws:s3:::${RUConnectPlatsPictureStorageBucketName}/*'
+
+  # Allow s3 bucket to call lambda functions
+  #  RUConnectS3CallFunctionPermissionProfile:
+  #    Type: AWS::Lambda::Permission
+  #    Properties:
+  #      Action: 'lambda:InvokeFunction'
+  #      FunctionName: !Ref ResizePictureFunction
+  #      Principal: s3.amazonaws.com
+  #      SourceAccount: !Ref "AWS::AccountId"
+  #      SourceArn: !Sub "arn:aws:s3:::${RUConnectProfilePictureStorageBucketName}"
+
+  # To comment correctly, I forgot what it does
+  #  RUConnectS3PublicPolicyProfile:
+  #    Type: AWS::S3::BucketPolicy
+  #    Properties:
+  #      Bucket: !Ref RUConnectProfilePictureStorage
+  #      PolicyDocument:
+  #        Version: '2012-10-17'
+  #        Statement:
+  #          - Sid: PublicReadForGetBucketObjects
+  #            Effect: Allow
+  #            Principal: '*'
+  #            Action: 's3:GetObject'
+  #            Resource: !Sub 'arn:aws:s3:::${RUConnectProfilePictureStorageBucketName}/*'
 
   #
   # FUNCTIONS
   #
 
-#  HelloWorldFunction:
-#    Type: AWS::Serverless::Function
-#    Properties:
-#      FunctionName: wei_app_lambda_hello_world
-#      CodeUri: hello_world/
-#      Role: !GetAtt AllowAllRole.Arn
-#      Events:
-#        ApiEvent:
-#          Type: Api
-#          Properties:
-#            Path: /
-#            Method: get
-#            RestApiId: !Ref WeiAppApi
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ruconnect_lambda_hello_world
+      CodeUri: hello_world/
+      Role: !GetAtt AllowAllRole.Arn
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /
+            Method: get
+            RestApiId: !Ref RUConnectApi
 
+  # Creation of user in db after he's confirmed
   PostConfirmSignUpFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: wei_app_lambda_post_confirm_sign_up
+      FunctionName: ruconnect_lambda_post_confirm_sign_up
       CodeUri: post_confirm_sign_up/
       Role: !GetAtt AllowAllRole.Arn
 
+  # AWS Lambda that checks user data before autovalidating them
   PreSignUpFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: wei_app_lambda_pre_sign_up
+      FunctionName: ruconnect_lambda_pre_sign_up
       CodeUri: pre_sign_up/
       Role: !GetAtt AllowAllRole.Arn
 
-#  RequestPictureIDFunction:
-#    Type: AWS::Serverless::Function
-#    Properties:
-#      FunctionName: wei_app_lambda_request_picture_id
-#      CodeUri: request_picture_id/
-#      Role: !GetAtt AllowAllRole.Arn
-#      Environment:
-#        Variables:
-#          PICTURE_BUCKET: !Ref WeiAppPictureStorage
-#      Events:
-#        ApiEvent:
-#          Type: Api
-#          Properties:
-#            Path: /picture
-#            Method: post
-#            RestApiId: !Ref WeiAppApi
-#            Auth:
-#              Authorizer: CognitoAuthorizer
-#            RequestModel:
-#              Model: RequestPictureIDModel
-#              ValidateBody: true
+  #  RequestPictureIDFunction:
+  #    Type: AWS::Serverless::Function
+  #    Properties:
+  #      FunctionName: wei_app_lambda_request_picture_id
+  #      CodeUri: request_picture_id/
+  #      Role: !GetAtt AllowAllRole.Arn
+  #      Environment:
+  #        Variables:
+  #          PICTURE_BUCKET: !Ref WeiAppPictureStorage
+  #      Events:
+  #        ApiEvent:
+  #          Type: Api
+  #          Properties:
+  #            Path: /picture
+  #            Method: post
+  #            RestApiId: !Ref WeiAppApi
+  #            Auth:
+  #              Authorizer: CognitoAuthorizer
+  #            RequestModel:
+  #              Model: RequestPictureIDModel
+  #              ValidateBody: true
 
-#  ResizePictureFunction:
-#    Type: AWS::Serverless::Function
-#    Properties:
-#      FunctionName: wei_app_lambda_resize_picture
-#      CodeUri: resize_picture/
-#      Role: !GetAtt AllowAllRole.Arn
-#      MemorySize: 1024
-#      Timeout: 10
-#      Layers:
-#        - !Ref PillowLayer
+  ResizePictureFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ruconnect_lambda_resize_picture
+      CodeUri: resize_picture/
+      Role: !GetAtt AllowAllRole.Arn
+      MemorySize: 1024
+      Timeout: 10
+  #      Layers:
+  #        - !Ref PillowLayer
 
-#  DependenciesLayer:
-#    Type: AWS::Serverless::LayerVersion
-#    Properties:
-#      LayerName: DependenciesLayer
-#      ContentUri: dependencies/
-#      CompatibleRuntimes:
-#        - python3.11
+  #  DependenciesLayer:
+  #    Type: AWS::Serverless::LayerVersion
+  #    Properties:
+  #      LayerName: DependenciesLayer
+  #      ContentUri: dependencies/
+  #      CompatibleRuntimes:
+  #        - python3.11
+
+  #
+  # POST BUILD LAMBDA
+  #
+  PostDeploymentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ruconnect_lambda_post_deployment_function
+      CodeUri: post_deploy/
+      Role: !GetAtt AllowAllRole.Arn
+      MemorySize: 1024
+      Timeout: 10
+
+  PostDeployEvent:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn: PostDeploymentFunction
+    Version: "1.0"
+    Properties:
+      ServiceToken: !GetAtt PostDeploymentFunction.Arn
 
 Outputs:
   UserPoolClientID:
