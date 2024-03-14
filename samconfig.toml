@@ -1,11 +1,24 @@
 version = 0.1
 [default.deploy.parameters]
-stack_name = "ruconnect-app"
+stack_name = "ruconnect-app-debug"
 resolve_s3 = true
-s3_prefix = "ruconnect-app"
+s3_prefix = "ruconnect-app-debug"
 region = "eu-west-1"
 profile = "perso"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "RUConnectPlatsPictureStorageBucketName=\"ruconnect-images-plats\" RUConnectProfilePictureStorageBucketName=\"ruconnect-images-profils\""
 image_repositories = []
+
+
+#version = 0.1
+#[default.deploy.parameters]
+#stack_name = "ruconnect-app"
+#resolve_s3 = true
+#s3_prefix = "ruconnect-app"
+#region = "eu-west-1"
+#profile = "perso"
+#confirm_changeset = true
+#capabilities = "CAPABILITY_IAM"
+#parameter_overrides = "RUConnectPlatsPictureStorageBucketName=\"ruconnect-images-plats\" RUConnectProfilePictureStorageBucketName=\"ruconnect-images-profils\""
+#image_repositories = []
+

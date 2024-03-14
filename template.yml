@@ -5,13 +5,13 @@ Description: RUConnect app cloudformation stack
 Parameters:
   RUConnectPlatsPictureStorageBucketName:
     Type: String
-    Default: ruconnect-images-plats
+    Default: -images-plats
   RUConnectProfilePictureStorageBucketName:
     Type: String
-    Default: ruconnect-images-profils
+    Default: -images-profils
   RUConnectCacheStorageBucketName:
     Type: String
-    Default: ruconnect-cache-bucket
+    Default: -cache-bucket
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
@@ -32,7 +32,7 @@ Resources:
   RUConnectApi:
     Type: AWS::Serverless::Api
     Properties:
-      Name: ruconnect-api
+      Name: !Sub "${AWS::StackName}-api"
       StageName: prod
       EndpointConfiguration:
         Type: REGIONAL
@@ -57,6 +57,22 @@ Resources:
               Access-Control-Allow-Origin: "'*'"
               Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               Access-Control-Allow-Methods: "'GET,PUT,POST,DELETE,OPTIONS'"
+      Models:
+        SwipeModel:
+          type: object
+          required: [ feel, plat ]
+          properties:
+            feel:
+              type: string
+              enum: [ like, dislike ]
+            plat:
+              type: string
+        FriendModel:
+          type: object
+          required: [ user ]
+          properties:
+            user:
+              type: string
 
   #
   # COGNITO
@@ -65,7 +81,7 @@ Resources:
   RUConnectUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: ruconnect-user-pool
+      UserPoolName: !Sub "${AWS::StackName}-user-pool"
       AliasAttributes:
         - preferred_username
       UsernameConfiguration:
@@ -101,18 +117,19 @@ Resources:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
       UserPoolId: !Ref RUConnectUserPool
-      Domain: !Sub prod-ruconnect-upd
+      Domain: !Sub "${AWS::StackName}-prod-ruconnect-upd"
 
   RUConnectUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
-      ClientName: ruconnect-userpool-client
+      ClientName: !Sub "${AWS::StackName}-userpool-client"
       GenerateSecret: False
       UserPoolId: !Ref RUConnectUserPool
       ExplicitAuthFlows:
         - ALLOW_USER_PASSWORD_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_CUSTOM_AUTH
+        - ALLOW_USER_SRP_AUTH
 
   #
   # DB
@@ -121,7 +138,7 @@ Resources:
   RUConnectUsersDB:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: ruconnect-db-users
+      TableName: !Sub "${AWS::StackName}-db-users"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: username
@@ -133,7 +150,7 @@ Resources:
   RUConnectPlatsDB:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: ruconnect-db-plats
+      TableName: !Sub "${AWS::StackName}-db-plats"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
@@ -145,7 +162,7 @@ Resources:
   RUConnectRestaurantsDB:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: ruconnect-db-restaurants
+      TableName: !Sub "${AWS::StackName}-db-restaurants"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
@@ -187,7 +204,7 @@ Resources:
     Type: AWS::S3::Bucket
     DependsOn: RUConnectS3CallFunctionPermissionPlats
     Properties:
-      BucketName: !Ref RUConnectPlatsPictureStorageBucketName
+      BucketName: !Sub "${AWS::StackName}${RUConnectPlatsPictureStorageBucketName}"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: False
         BlockPublicPolicy: False
@@ -220,7 +237,7 @@ Resources:
   RUConnecctCacheStorage:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref RUConnectCacheStorageBucketName
+      BucketName: !Sub "${AWS::StackName}${RUConnectCacheStorageBucketName}"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: False
         BlockPublicPolicy: False
@@ -278,7 +295,7 @@ Resources:
       FunctionName: !Ref ResizePictureFunction
       Principal: s3.amazonaws.com
       SourceAccount: !Ref "AWS::AccountId"
-      SourceArn: !Sub "arn:aws:s3:::${RUConnectPlatsPictureStorageBucketName}"
+      SourceArn: !Sub "arn:aws:s3:::${AWS::StackName}${RUConnectPlatsPictureStorageBucketName}"
 
   # Allow bucket to be read by other code
   RUConnectS3PublicPolicyPlats:
@@ -292,7 +309,7 @@ Resources:
             Effect: Allow
             Principal: '*'
             Action: 's3:GetObject'
-            Resource: !Sub 'arn:aws:s3:::${RUConnectPlatsPictureStorageBucketName}/*'
+            Resource: !Sub 'arn:aws:s3:::${AWS::StackName}${RUConnectPlatsPictureStorageBucketName}/*'
 
   # Allow s3 bucket to call lambda functions
   #  RUConnectS3CallFunctionPermissionProfile:
@@ -325,7 +342,7 @@ Resources:
   HelloWorldFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: ruconnect_lambda_hello_world
+      FunctionName: !Sub "${AWS::StackName}_lambda_hello_world"
       CodeUri: hello_world/
       Role: !GetAtt AllowAllRole.Arn
       Events:
@@ -340,7 +357,7 @@ Resources:
   PostConfirmSignUpFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: ruconnect_lambda_post_confirm_sign_up
+      FunctionName: !Sub "${AWS::StackName}_lambda_post_confirm_sign_up"
       CodeUri: post_confirm_sign_up/
       Role: !GetAtt AllowAllRole.Arn
 
@@ -348,9 +365,121 @@ Resources:
   PreSignUpFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: ruconnect_lambda_pre_sign_up
+      FunctionName: !Sub "${AWS::StackName}_lambda_pre_sign_up"
       CodeUri: pre_sign_up/
       Role: !GetAtt AllowAllRole.Arn
+
+  UpdatePlatLikenessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}_lambda_update_plat_likeness"
+      CodeUri: update_plat_likeness
+      Role: !GetAtt AllowAllRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /swipe
+            Method: post
+            RestApiId: !Ref RUConnectApi
+            RequestModel:
+              Model: SwipeModel
+              ValidateBody: true
+
+  DataGouvProxyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}_lambda_data_gouv_proxy"
+      CodeUri: data_gouv_proxy/
+      Role: !GetAtt AllowAllRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /datagouv/{ville}
+            Method: get
+            RestApiId: !Ref RUConnectApi
+
+  GetSelfFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}_lambda_get_self"
+      CodeUri: get_self/
+      Role: !GetAtt AllowAllRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /self
+            Method: get
+            RestApiId: !Ref RUConnectApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  GetUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}_lambda_get_user"
+      CodeUri: get_user/
+      Role: !GetAtt AllowAllRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /user/{user}
+            Method: get
+            RestApiId: !Ref RUConnectApi
+
+  AddFriendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}_lambda_add_friend"
+      CodeUri: add_friend/
+      Role: !GetAtt AllowAllRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /addfriend
+            Method: post
+            RestApiId: !Ref RUConnectApi
+            RequestModel:
+              Model: FriendModel
+              ValidateBody: true
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  RemoveFriendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}_lambda_remove_friend"
+      CodeUri: remove_friend/
+      Role: !GetAtt AllowAllRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /removefriend
+            Method: post
+            RestApiId: !Ref RUConnectApi
+            RequestModel:
+              Model: FriendModel
+              ValidateBody: true
+            Auth:
+              Authorizer: CognitoAuthorizer
+
 
   #  RequestPictureIDFunction:
   #    Type: AWS::Serverless::Function
@@ -377,7 +506,7 @@ Resources:
   ResizePictureFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: ruconnect_lambda_resize_picture
+      FunctionName: !Sub "${AWS::StackName}_lambda_resize_picture"
       CodeUri: resize_picture/
       Role: !GetAtt AllowAllRole.Arn
       MemorySize: 1024
@@ -396,21 +525,29 @@ Resources:
   #
   # POST BUILD LAMBDA
   #
-  PostDeploymentFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: ruconnect_lambda_post_deployment_function
-      CodeUri: post_deploy/
-      Role: !GetAtt AllowAllRole.Arn
-      MemorySize: 1024
-      Timeout: 10
+#  PostDeploymentFunction:
+#    Type: AWS::Serverless::Function
+#    Properties:
+#      FunctionName: ruconnect_lambda_post_deployment_function
+#      CodeUri: post_deploy/
+#      Role: !GetAtt AllowAllRole.Arn
+#      MemorySize: 1024
+#      Timeout: 10
+#
+#  PostDeployEvent:
+#    Type: AWS::CloudFormation::CustomResource
+#    DependsOn: PostDeploymentFunction
+#    Version: "1.0"
+#    Properties:
+#      ServiceToken: !GetAtt PostDeploymentFunction.Arn
 
-  PostDeployEvent:
-    Type: AWS::CloudFormation::CustomResource
-    DependsOn: PostDeploymentFunction
-    Version: "1.0"
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
     Properties:
-      ServiceToken: !GetAtt PostDeploymentFunction.Arn
+      LayerName: !Sub "${AWS::StackName}DependenciesLayer"
+      ContentUri: dependencies/
+      CompatibleRuntimes:
+        - python3.11
 
 Outputs:
   UserPoolClientID:
