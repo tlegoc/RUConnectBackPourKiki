@@ -18,10 +18,23 @@ def lambda_handler(event, context):
             }
         }
 
+    if "Item" not in user:
+        return {
+            'statusCode': 500,
+            'body': "Error retrieving user, user not found",
+            'headers': {
+                'Access-Control-Allow-Origin': '*'
+            }
+        }
+
     data = user['Item']
 
     # Is a string set, so we convert to a list that can be converted to json
     data['friends'] = list(data['friends'])
+    # Remove pending friends field
+    del data['pendingfriends']
+    # Remove requests friends field
+    del data['requestsfriends']
 
     return {
         'statusCode': 200,

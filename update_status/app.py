@@ -14,31 +14,32 @@ def lambda_handler(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['USER_TABLE'])
 
-    feel = event["queryStringParameters"]['feel']
-    plat = event["queryStringParameters"]['plat']
+    status = event["queryStringParameters"]['status']
 
-    if feel == "like":
+    if status == "inside":
         pass
-    elif feel == "dislike":
+    elif status == "inqueue":
+        pass
+    elif status == "outside":
         pass
     else:
         return {
             'statusCode': 400,
-            'body': "feel field has an incorrect value: should be [like, dislike]"
+            'body': "status field has an incorrect value: should be [inside, inqueue, outside]"
         }
+
 
     # Delete
     table.update_item(
         Key={
             'username': username
         },
-        UpdateExpression='SET #plats_feel.#plat = :f',
+        UpdateExpression='SET #status = :f',
         ExpressionAttributeNames={
-            '#plats_feel': 'plats_feel',
-            '#plat': plat
+            '#status': 'status'
         },
         ExpressionAttributeValues={
-            ':f': feel,
+            ':f': status,
         },
     )
 

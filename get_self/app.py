@@ -26,6 +26,10 @@ def lambda_handler(event, context):
 
     # Is a string set, so we convert to a list that can be converted to json
     data['friends'] = list(data['friends'])
+    # Remove pending friends field
+    del data['pendingfriends']
+    # Remove requests friends field
+    del data['requestsfriends']
 
     return {
         'statusCode': 200,

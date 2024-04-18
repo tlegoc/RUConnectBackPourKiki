@@ -9,8 +9,11 @@ def lambda_handler(event, context):
     response = table.put_item(
         Item={
             'username': event['userName'],
-            "friends": set(["DummyFriend"]),
-            "plats_feel": {}
+            "friends": {""},
+            "pendingfriends": {""},
+            "requestsfriends": {""},
+            "plats_feel": {},
+            "status": "out"
         }
     )
 

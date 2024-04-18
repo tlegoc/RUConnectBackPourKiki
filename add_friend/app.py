@@ -14,31 +14,38 @@ def lambda_handler(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['USER_TABLE'])
 
-    # plat = parse.unquote(event['pathParameters']['plat'])
+    # if "queryStringParameters" not in event or event["queryStringParameters"] is None:
+    friend_name = event["queryStringParameters"]['friend_name']
 
-    if event['body'] is None:
+    friend_exists = table.get_item(
+        Key={
+            'username': friend_name
+        }
+    )
+
+    if 'Item' not in friend_exists:
         return {
             'statusCode': 400,
-            'body': "Body must not be empty"
+            'body': "Friend does not exist"
         }
 
-
-    body = json.loads(event['body'])
-
-    if "user" not in body:
-        return {
-            'statusCode': 400,
-            'body': "field [feel] doesn't exists"
-        }
-
-    # Delete
     table.update_item(
         Key={
             'username': username
         },
         UpdateExpression='ADD friends :user',
         ExpressionAttributeValues={
-            ':user': set([body['user']]),
+            ':user': set([friend_name]),
+        },
+    )
+
+    table.update_item(
+        Key={
+            'username': friend_name
+        },
+        UpdateExpression='ADD friends :user',
+        ExpressionAttributeValues={
+            ':user': set([username]),
         },
     )
 

@@ -4,11 +4,10 @@ import json
 
 def lambda_handler(event, context):
     ville = parse.unquote(event['pathParameters']['ville'])
-    if "body" not in event or event["body"] is None:
+    if "queryStringParameters" not in event or event["queryStringParameters"] is None:
         data = requests.get("http://webservices-v2.crous-mobile.fr:8080/feed/{ville}/externe/menu.xml".format(ville=ville))
     else:
-        # print(event['body'])
-        body = json.loads(event['body'])
+        body = event['queryStringParameters']
 
         if "get_ids" in body and bool(body["get_ids"]):
             data = requests.get("http://webservices-v2.crous-mobile.fr/feed/{ville}/externe/resto.xml".format(ville=ville))

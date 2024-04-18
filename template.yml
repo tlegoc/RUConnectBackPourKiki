@@ -57,22 +57,6 @@ Resources:
               Access-Control-Allow-Origin: "'*'"
               Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               Access-Control-Allow-Methods: "'GET,PUT,POST,DELETE,OPTIONS'"
-      Models:
-        SwipeModel:
-          type: object
-          required: [ feel, plat ]
-          properties:
-            feel:
-              type: string
-              enum: [ like, dislike ]
-            plat:
-              type: string
-        FriendModel:
-          type: object
-          required: [ user ]
-          properties:
-            user:
-              type: string
 
   #
   # COGNITO
@@ -384,9 +368,13 @@ Resources:
             Path: /swipe
             Method: post
             RestApiId: !Ref RUConnectApi
-            RequestModel:
-              Model: SwipeModel
-              ValidateBody: true
+            RequestParameters:
+            - method.request.querystring.plat:
+                Caching: false
+                Required: true
+            - method.request.querystring.feel:
+                Caching: false
+                Required: true
 
   DataGouvProxyFunction:
     Type: AWS::Serverless::Function
@@ -438,11 +426,11 @@ Resources:
             Method: get
             RestApiId: !Ref RUConnectApi
 
-  AddFriendFunction:
+  GetAllUsernamesFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "${AWS::StackName}_lambda_add_friend"
-      CodeUri: add_friend/
+      FunctionName: !Sub "${AWS::StackName}_lambda_get_all_usernames"
+      CodeUri: get_all_usernames/
       Role: !GetAtt AllowAllRole.Arn
       Layers:
         - !Ref DependenciesLayer
@@ -450,20 +438,84 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
-            Path: /addfriend
+            Path: /users
+            Method: get
+            RestApiId: !Ref RUConnectApi
+
+  ManageFriendsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}_lambda_manage_friends"
+      CodeUri: manage_friends/
+      Role: !GetAtt AllowAllRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /friends
             Method: post
             RestApiId: !Ref RUConnectApi
-            RequestModel:
-              Model: FriendModel
-              ValidateBody: true
+            RequestParameters:
+              - method.request.querystring.action:
+                  Caching: false
+                  Required: false
+              - method.request.querystring.friendname:
+                  Caching: false
+                  Required: false
             Auth:
               Authorizer: CognitoAuthorizer
 
-  RemoveFriendFunction:
+#  AddFriendFunction:
+#    Type: AWS::Serverless::Function
+#    Properties:
+#      FunctionName: !Sub "${AWS::StackName}_lambda_add_friend"
+#      CodeUri: add_friend/
+#      Role: !GetAtt AllowAllRole.Arn
+#      Layers:
+#        - !Ref DependenciesLayer
+#      Events:
+#        ApiEvent:
+#          Type: Api
+#          Properties:
+#            Path: /addfriend
+#            Method: post
+#            RestApiId: !Ref RUConnectApi
+#            RequestParameters:
+#              - method.request.querystring.friend_name:
+#                  Caching: false
+#                  Required: true
+#            Auth:
+#              Authorizer: CognitoAuthorizer
+#
+#  RemoveFriendFunction:
+#    Type: AWS::Serverless::Function
+#    Properties:
+#      FunctionName: !Sub "${AWS::StackName}_lambda_remove_friend"
+#      CodeUri: remove_friend/
+#      Role: !GetAtt AllowAllRole.Arn
+#      Layers:
+#        - !Ref DependenciesLayer
+#      Events:
+#        ApiEvent:
+#          Type: Api
+#          Properties:
+#            Path: /removefriend
+#            Method: post
+#            RestApiId: !Ref RUConnectApi
+#            RequestParameters:
+#              - method.request.querystring.friend_name:
+#                  Caching: false
+#                  Required: true
+#            Auth:
+#              Authorizer: CognitoAuthorizer
+
+  SetStatusFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "${AWS::StackName}_lambda_remove_friend"
-      CodeUri: remove_friend/
+      FunctionName: !Sub "${AWS::StackName}_lambda_set_status"
+      CodeUri: update_status/
       Role: !GetAtt AllowAllRole.Arn
       Layers:
         - !Ref DependenciesLayer
@@ -471,12 +523,13 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
-            Path: /removefriend
+            Path: /self/status
             Method: post
             RestApiId: !Ref RUConnectApi
-            RequestModel:
-              Model: FriendModel
-              ValidateBody: true
+            RequestParameters:
+              - method.request.querystring.status:
+                  Caching: false
+                  Required: true
             Auth:
               Authorizer: CognitoAuthorizer
 
