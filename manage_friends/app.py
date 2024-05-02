@@ -76,7 +76,10 @@ def lambda_handler(event, context):
     if 'Item' not in friend_exists:
         return {
             'statusCode': 500,
-            'body': "Friend does not exist"
+            'body': "Friend does not exist",
+            'headers': {
+                'Access-Control-Allow-Origin': '*'
+            }
         }
 
     friend = friend_exists["Item"]
@@ -86,13 +89,19 @@ def lambda_handler(event, context):
             print("Already friend")
             return {
                 'statusCode': 500,
-                'body': "You are already friend, or a request is pending"
+                'body': "You are already friend, or a request is pending",
+                'headers': {
+                    'Access-Control-Allow-Origin': '*'
+                }
             }
 
         if friendname in user["pendingfriends"] or friendname in user["requestsfriends"] or friendname in user["friends"]:
             return {
                 'statusCode': 400,
-                'body': "You are already friend, or a request is pending"
+                'body': "You are already friend, or a request is pending",
+                'headers': {
+                    'Access-Control-Allow-Origin': '*'
+                }
             }
 
         print("Updating user")
