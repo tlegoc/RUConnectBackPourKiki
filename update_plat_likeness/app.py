@@ -24,10 +24,22 @@ def lambda_handler(event, context):
     else:
         return {
             'statusCode': 400,
-            'body': "feel field has an incorrect value: should be [like, dislike]"
+            'body': "feel field has an incorrect value: should be [like, dislike]",
+            'headers': {
+                'Access-Control-Allow-Origin': '*'
+            }
         }
 
-    # Delete
+    # Vérifier si le nom du plat est a-zA-Z0-9_-
+    if not plat.replace("-", "").replace("_", "").isalnum():
+        return {
+            'statusCode': 400,
+            'body': "plat field has an incorrect value: should be a-zA-Z0-9 _ -",
+            'headers': {
+                'Access-Control-Allow-Origin': '*'
+            }
+        }
+
     table.update_item(
         Key={
             'username': username

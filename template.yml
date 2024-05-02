@@ -467,6 +467,24 @@ Resources:
             Auth:
               Authorizer: CognitoAuthorizer
 
+  GetFriendsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}_lambda_get_friends"
+      CodeUri: get_friends/
+      Role: !GetAtt AllowAllRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /friends
+            Method: get
+            RestApiId: !Ref RUConnectApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+
 #  AddFriendFunction:
 #    Type: AWS::Serverless::Function
 #    Properties:

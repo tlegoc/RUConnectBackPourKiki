@@ -1,7 +1,9 @@
 import boto3
+import json
 import os
 import jwt
-import json
+from urllib import parse
+
 
 def lambda_handler(event, context):
     token = jwt.decode(event['headers']['Authorization'].replace('Bearer ', ''), algorithms=['RS256'],
@@ -22,14 +24,12 @@ def lambda_handler(event, context):
             }
         }
 
-    data = user['Item']
+    user = user["Item"]
 
-    # Is a string set, so we convert to a list that can be converted to json
-    data['friends'] = list(data['friends'])
-    # Remove pending friends field
-    data['pendingfriends'] = list(data['pendingfriends'])
-    # Remove requests friends field
-    data['requestsfriends'] = list(data['requestsfriends'])
+    data = {}
+    data['pendingfriends'] = list(user['pendingfriends'])
+    data['requestsfriends'] = list(user['requestsfriends'])
+    data['friends'] = list(user['friends'])
 
     return {
         'statusCode': 200,

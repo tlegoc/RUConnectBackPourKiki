@@ -128,13 +128,19 @@ def lambda_handler(event, context):
         if (username not in friend["pendingfriends"]) and (username not in friend["requestsfriends"]) and (username not in friend["friends"]):
             return {
                 'statusCode': 400,
-                'body': "Cannot remove friend, not a friend or no request is pending"
+                'body': "Cannot remove friend, not a friend or no request is pending",
+                'headers': {
+                    'Access-Control-Allow-Origin': '*'
+                }
             }
 
         if (friendname not in user["pendingfriends"]) and (friendname not in user["requestsfriends"]) and (friendname not in user["friends"]):
             return {
                 'statusCode': 400,
-                'body': "Cannot remove friend, not a friend or no request is pending"
+                'body': "Cannot remove friend, not a friend or no request is pending",
+                'headers': {
+                    'Access-Control-Allow-Origin': '*'
+                }
             }
 
         expr = ""
@@ -186,13 +192,19 @@ def lambda_handler(event, context):
         if username not in friend["pendingfriends"]:
             return {
                 'statusCode': 400,
-                'body': "You are already friend, or no request is pending"
+                'body': "You are already friend, or no request is pending",
+                'headers': {
+                    'Access-Control-Allow-Origin': '*'
+                }
             }
 
         if friendname not in user["requestsfriends"]:
             return {
                 'statusCode': 400,
-                'body': "You are already friend, or no request is pending"
+                'body': "You are already friend, or no request is pending",
+                'headers': {
+                    'Access-Control-Allow-Origin': '*'
+                }
             }
 
         table.update_item(
