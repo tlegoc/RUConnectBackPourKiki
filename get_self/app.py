@@ -25,11 +25,19 @@ def lambda_handler(event, context):
     data = user['Item']
 
     # Is a string set, so we convert to a list that can be converted to json
-    data['friends'] = list(data['friends'])
-    # Remove pending friends field
     data['pendingfriends'] = list(data['pendingfriends'])
-    # Remove requests friends field
+    data['pendingfriends'].remove("")
     data['requestsfriends'] = list(data['requestsfriends'])
+    data['requestsfriends'].remove("")
+    data['friends'] = list(data['friends'])
+    data['friends'].remove("")
+    data['friendsstatus'] = {}
+
+    # Get all users, filter to get only friends and then map their username to their status
+    users = table.scan()
+    for user in users['Items']:
+        if user['username'] in data['friends']:
+            data['friendsstatus'][user['username']] = user['status']
 
     return {
         'statusCode': 200,

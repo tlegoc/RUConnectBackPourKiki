@@ -28,8 +28,18 @@ def lambda_handler(event, context):
 
     data = {}
     data['pendingfriends'] = list(user['pendingfriends'])
+    data['pendingfriends'].remove("")
     data['requestsfriends'] = list(user['requestsfriends'])
+    data['requestsfriends'].remove("")
     data['friends'] = list(user['friends'])
+    data['friends'].remove("")
+    data['friendsstatus'] = {}
+
+    # Get all users, filter to get only friends and then map their username to their status
+    users = table.scan()
+    for user in users['Items']:
+        if user['username'] in data['friends']:
+            data['friendsstatus'][user['username']] = user['status']
 
     return {
         'statusCode': 200,

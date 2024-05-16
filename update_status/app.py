@@ -20,12 +20,12 @@ def lambda_handler(event, context):
         pass
     elif status == "inqueue":
         pass
-    elif status == "outside":
+    elif status == "out":
         pass
     else:
         return {
             'statusCode': 400,
-            'body': "status field has an incorrect value: should be [inside, inqueue, outside]"
+            'body': "status field has an incorrect value: should be [inside, inqueue, out]"
         }
 
 
